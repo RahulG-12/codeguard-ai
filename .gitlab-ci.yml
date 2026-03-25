@@ -1,0 +1,43 @@
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  DOCKER_IMAGE: $CI_REGISTRY_IMAGE/codeguard-ai:$CI_COMMIT_SHORT_SHA
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+run_tests:
+  stage: test
+  image: python:3.11-slim
+  script:
+    - pip install -r requirements.txt
+    - pip install pytest pytest-asyncio httpx
+    - pytest tests/ -v
+  only:
+    - merge_requests
+    - main
+
+# ── Build Docker Image ─────────────────────────────────────────────────────────
+build_image:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $DOCKER_IMAGE .
+    - docker push $DOCKER_IMAGE
+  only:
+    - main
+
+# ── Deploy ─────────────────────────────────────────────────────────────────────
+deploy:
+  stage: deploy
+  image: docker:24
+  script:
+    - echo "Deploy to your server here"
+    - echo "docker pull $DOCKER_IMAGE && docker run -d -p 8000:8000 --env-file .env $DOCKER_IMAGE"
+  only:
+    - main
+  when: manual

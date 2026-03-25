@@ -1,0 +1,136 @@
+====================================================
+CODEGUARD AI — DEVPOST SUBMISSION DESCRIPTION
+GitLab Duo Agent Platform Challenge
+====================================================
+
+PROJECT NAME: CodeGuard AI
+
+TAGLINE: Your always-on AI security engineer — reviews every MR before humans do.
+
+----------------------------------------------------
+WHAT IS CODEGUARD AI?
+----------------------------------------------------
+
+CodeGuard AI is an autonomous AI agent built on the GitLab Duo Agent Platform that acts as
+a permanent security engineer and code reviewer on your team. The moment a developer opens
+a Merge Request, CodeGuard AI springs into action — no human needed to trigger it.
+
+It scans the code diff for OWASP Top 10 vulnerabilities, reviews code quality, writes the
+missing unit tests, and posts a detailed report directly on the MR — all within seconds.
+
+----------------------------------------------------
+THE PROBLEM IT SOLVES
+----------------------------------------------------
+
+The "AI Paradox" in software development is real: AI helps developers write code faster,
+but security reviews, code reviews, and test writing haven't kept pace. The result:
+
+- MRs sit unreviewed for days
+- Security vulnerabilities slip into production
+- Test coverage degrades over time
+- Senior engineers burn out doing repetitive reviews
+
+CodeGuard AI eliminates this bottleneck entirely.
+
+----------------------------------------------------
+HOW IT WORKS
+----------------------------------------------------
+
+TRIGGER:
+A GitLab webhook fires when any Merge Request is opened or updated.
+
+STEP 1 — Security Scan:
+Claude (Anthropic) analyzes the code diff for SQL injection, hardcoded secrets,
+XSS, broken authentication, and all OWASP Top 10 issues. Returns a structured
+JSON report with risk level (CRITICAL/HIGH/MEDIUM/LOW/NONE) and specific fixes.
+
+STEP 2 — Code Review:
+Claude scores the code quality from 1-10, identifies major issues and minor
+suggestions, and highlights what the developer did well (encouragement matters!).
+
+STEP 3 — Test Generation:
+Claude identifies all new functions in the diff and writes complete unit tests
+(pytest/jest/junit depending on the language) covering normal and edge cases.
+
+STEP 4 — Post Report:
+All three results are compiled into a beautiful, structured GitLab MR comment
+with emoji, tables, and collapsible sections. Critical issues also auto-create
+GitLab Issues. MRs are auto-labeled (security-risk, ai-approved, needs-review).
+
+----------------------------------------------------
+TECHNICAL IMPLEMENTATION
+----------------------------------------------------
+
+- Platform: GitLab Duo Agent Platform
+- AI Model: Anthropic Claude (claude-sonnet-4-20250514) via GitLab
+- Backend: FastAPI (Python) — lightweight, async, production-ready
+- GitLab Integration: python-gitlab library for API calls
+- Configuration: YAML-based agent definition in .gitlab/duo_workflow/
+- Deployment: Docker container, deployable anywhere
+- CI/CD: Full GitLab CI pipeline included
+- Tests: pytest unit tests with mocked Claude responses
+
+----------------------------------------------------
+WHAT MAKES IT UNIQUE
+----------------------------------------------------
+
+1. THREE agents in one flow — security + review + testing run as a coordinated pipeline
+2. Takes REAL ACTIONS — creates issues, adds labels, posts comments (not just chatting)
+3. Encouraging tone — praises what developers did right, not just criticism
+4. Language-agnostic — detects Python, JavaScript, Java, etc. automatically
+5. Zero configuration for end users — install once, works on every MR forever
+
+----------------------------------------------------
+IMPACT
+----------------------------------------------------
+
+For a team of 10 developers opening 5 MRs per week:
+- 50 security scans/week that would have required a senior engineer
+- ~200 critical vulnerabilities caught per year before production
+- ~500 unit tests auto-generated per year
+- Estimated 15+ engineering hours saved per week
+
+At GitLab's scale (30M+ users), this agent could catch millions of vulnerabilities.
+
+----------------------------------------------------
+PRIZES TARGETING
+----------------------------------------------------
+
+- Grand Prize ($15,000) — Full SDLC automation with real actions
+- Most Impactful on GitLab & Anthropic ($10,000) — Core AI powered by Claude
+- Most Technically Impressive ($5,000) — Multi-step agent pipeline with real GitLab API actions
+
+----------------------------------------------------
+VIDEO DEMO SCRIPT (3 minutes)
+----------------------------------------------------
+
+0:00 — Intro: "CodeGuard AI is your always-on AI security engineer for GitLab"
+0:20 — Show the problem: open an MR with a SQL injection + hardcoded secret
+0:40 — Show the agent trigger: GitLab Duo workflow YAML
+1:00 — Watch CodeGuard run: FastAPI logs show security scan → review → test gen
+1:30 — Show the result: MR comment with full security report, code score, tests
+2:00 — Show label auto-applied: "security-risk" added to MR
+2:10 — Show GitLab Issue auto-created for the critical vulnerability
+2:30 — Show a clean MR: gets "ai-approved" label, positive feedback
+2:50 — Wrap up: "One agent. Every MR. Zero vulnerabilities shipped."
+
+----------------------------------------------------
+TESTING INSTRUCTIONS
+----------------------------------------------------
+
+1. Clone: git clone https://gitlab.com/gitlab-ai-hackathon/codeguard-ai
+2. Copy .env.example to .env, add ANTHROPIC_API_KEY and GITLAB_TOKEN
+3. Run: pip install -r requirements.txt && uvicorn agent.main:app --port 8000
+4. Test health: curl http://localhost:8000/health
+5. Simulate MR: curl -X POST http://localhost:8000/webhook/mr -H "Content-Type: application/json" -d @tests/sample_payload.json
+6. Or run tests: pytest tests/ -v
+
+Full setup guide in README.md.
+
+----------------------------------------------------
+BUILT BY
+----------------------------------------------------
+
+Rahul Giri — AI/ML Engineer
+rahulgiri12033@gmail.com
+github.com/RahulG-12

@@ -1,0 +1,71 @@
+# CodeGuard AI Agent - GitLab Duo Workflow Configuration
+# Trigger: Merge Request Opened / Updated
+# Action: AI-powered security scan, code review, and test generation
+
+name: codeguard_ai
+description: |
+  CodeGuard AI is an autonomous security and code review agent powered by Anthropic Claude.
+  It triggers on every Merge Request, scans the diff for vulnerabilities, reviews code quality,
+  and generates missing unit tests — posting a structured report directly on the MR.
+
+trigger:
+  events:
+    - merge_request_opened
+    - merge_request_updated
+
+context:
+  - type: merge_request_diff
+    description: The full diff of the merge request being reviewed
+  - type: repository_files
+    description: Relevant source files for deeper context
+  - type: project_metadata
+    description: Project name, language, and configuration files
+
+tools:
+  - name: post_mr_comment
+    description: Posts the AI review as a comment on the Merge Request
+    type: gitlab_api
+    endpoint: /projects/{project_id}/merge_requests/{mr_iid}/notes
+
+  - name: create_issue
+    description: Creates a GitLab issue for critical security vulnerabilities found
+    type: gitlab_api
+    endpoint: /projects/{project_id}/issues
+
+  - name: generate_test_file
+    description: Creates a new file in the repo with generated unit tests
+    type: gitlab_api
+    endpoint: /projects/{project_id}/repository/files/{file_path}
+
+  - name: update_mr_label
+    description: Adds labels (e.g. security-risk, needs-tests) to the MR
+    type: gitlab_api
+    endpoint: /projects/{project_id}/merge_requests/{mr_iid}
+
+steps:
+  - name: security_scan
+    description: Scan the MR diff for OWASP Top 10 and common security issues
+    model: claude-sonnet-4-20250514
+    prompt_template: security_scan.txt
+
+  - name: code_review
+    description: Review code quality, patterns, and best practices
+    model: claude-sonnet-4-20250514
+    prompt_template: code_review.txt
+    depends_on: security_scan
+
+  - name: test_generation
+    description: Generate unit tests for untested code paths in the diff
+    model: claude-sonnet-4-20250514
+    prompt_template: test_generation.txt
+    depends_on: code_review
+
+  - name: post_report
+    description: Compile all findings and post as a structured MR comment
+    model: claude-sonnet-4-20250514
+    prompt_template: report.txt
+    depends_on:
+      - security_scan
+      - code_review
+      - test_generation
+    action: post_mr_comment
