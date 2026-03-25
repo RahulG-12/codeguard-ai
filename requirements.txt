@@ -1,8 +1,6 @@
-anthropic>=0.25.0
-python-gitlab>=4.0.0
-fastapi>=0.110.0
-uvicorn>=0.29.0
-pydantic>=2.0.0
-python-dotenv>=1.0.0
-httpx>=0.27.0
+fastapi
+uvicorn
+python-dotenv
+python-gitlab
 openai==1.30.0
+httpx==0.27.0
