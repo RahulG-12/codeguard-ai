@@ -1,5 +1,5 @@
 """
-CodeGuard AI Agent (OpenAI Version - FINAL WORKING)
+CodeGuard AI Agent (FINAL VERSION WITH UI + WEBHOOK)
 Author: Rahul Giri
 """
 
@@ -13,8 +13,9 @@ import json
 import logging
 import re
 import gitlab
-import threading   # ✅ IMPORTANT (NEW)
+import threading
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from openai import OpenAI
 
@@ -124,7 +125,7 @@ def compile_report(security, review, tests):
         )
     )
 
-# ── BACKGROUND PROCESS (NEW 🔥) ───────────────────
+# ── BACKGROUND PROCESS ────────────────────────────
 def process_ai(event):
     try:
         security = run_security_scan(event.diff)
@@ -145,7 +146,7 @@ def post_comment(project_id, mr_iid, text):
     mr = project.mergerequests.get(mr_iid)
     mr.notes.create({"body": text})
 
-# ── API ──────────────────────────────────────────
+# ── WEBHOOK ──────────────────────────────────────
 @app.post("/webhook/mr")
 async def webhook(request: Request):
     try:
@@ -164,14 +165,130 @@ async def webhook(request: Request):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # ✅ RUN IN BACKGROUND (NO TIMEOUT)
     threading.Thread(target=process_ai, args=(event,)).start()
 
-    return {"status": "processing"}  # ⚡ instant response
+    return {"status": "processing"}
 
+# ── UI PAGE ──────────────────────────────────────
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return """
+    <html>
+    <head>
+        <title>CodeGuard AI</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background: #f5f7fb;
+                padding: 30px;
+                color: #333;
+            }
+
+            h1 {
+                text-align: center;
+                color: #2563eb;
+            }
+
+            textarea {
+                width: 100%;
+                height: 200px;
+                padding: 10px;
+                border-radius: 8px;
+                border: 1px solid #ccc;
+            }
+
+            button {
+                margin-top: 10px;
+                padding: 12px 20px;
+                background: #2563eb;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+            }
+
+            .box {
+                background: white;
+                padding: 20px;
+                margin-top: 20px;
+                border-radius: 10px;
+            }
+
+            pre {
+                background: #f1f5f9;
+                padding: 10px;
+                border-radius: 6px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>🛡️ CodeGuard AI Dashboard</h1>
+
+        <textarea id="code" placeholder="Paste code here..."></textarea><br>
+        <button onclick="analyze()">Analyze</button>
+
+        <div class="box">
+            <h2>🔍 Security</h2>
+            <pre id="security"></pre>
+        </div>
+
+        <div class="box">
+            <h2>🧠 Review</h2>
+            <pre id="review"></pre>
+        </div>
+
+        <div class="box">
+            <h2>🧪 Tests</h2>
+            <pre id="tests"></pre>
+        </div>
+
+        <script>
+        async function analyze() {
+            const code = document.getElementById("code").value;
+
+            const res = await fetch("/analyze", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ diff: code })
+            });
+
+            const data = await res.json();
+
+            document.getElementById("security").innerText =
+                JSON.stringify(data.security, null, 2);
+
+            document.getElementById("review").innerText =
+                JSON.stringify(data.review, null, 2);
+
+            document.getElementById("tests").innerText =
+                JSON.stringify(data.tests, null, 2);
+        }
+        </script>
+    </body>
+    </html>
+    """
+
+# ── ANALYZE API (UI) ─────────────────────────────
+@app.post("/analyze")
+async def analyze(data: dict):
+    diff = data.get("diff", "")
+
+    security = run_security_scan(diff)
+    review = run_code_review(diff)
+    tests = run_tests(diff)
+
+    return {
+        "security": security,
+        "review": review,
+        "tests": tests
+    }
+
+# ── HEALTH ───────────────────────────────────────
 @app.get("/health")
 def health():
     return {"status": "running"}
+
+# ── MAIN ─────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
