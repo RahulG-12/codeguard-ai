@@ -1,52 +1,43 @@
 """
-CodeGuard AI Agent (Gemini Version)
-===================================
-Main entry point for the CodeGuard AI agent.
-Now powered by Google Gemini (FREE)
-
+CodeGuard AI Agent (OpenAI Version - FINAL WORKING)
 Author: Rahul Giri
-License: MIT
 """
 
-# ── ENV LOAD ────────────────────────────────────────────────────────────────
+# ── ENV ───────────────────────────────────────────
 import os
 from dotenv import load_dotenv
 load_dotenv()
 
-# ── IMPORTS ─────────────────────────────────────────────────────────────────
+# ── IMPORTS ───────────────────────────────────────
 import json
 import logging
 import re
 import gitlab
-import google.generativeai as genai
+import threading   # ✅ IMPORTANT (NEW)
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
+from openai import OpenAI
 
-# ── LOGGING ─────────────────────────────────────────────────────────────────
+# ── SETUP ─────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ── FASTAPI APP ─────────────────────────────────────────────────────────────
-app = FastAPI(
-    title="CodeGuard AI Agent",
-    description="AI-powered security scan, code review & test generation for GitLab MRs",
-    version="1.0.0"
-)
+app = FastAPI()
 
-# ── GEMINI SETUP ────────────────────────────────────────────────────────────
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-MODEL = genai.GenerativeModel("gemini-1.5-flash")
-
-# ── GITLAB CLIENT ───────────────────────────────────────────────────────────
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 gl = gitlab.Gitlab(os.environ["GITLAB_URL"], private_token=os.environ["GITLAB_TOKEN"])
 
-# ── UTILITY ─────────────────────────────────────────────────────────────────
-def extract_json(text: str) -> dict:
-    """Extract JSON safely from Gemini response."""
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    return json.loads(match.group()) if match else {}
+MODEL = "gpt-4o-mini"
 
-# ── Pydantic Model ──────────────────────────────────────────────────────────
+# ── UTILITY ───────────────────────────────────────
+def extract_json(text):
+    try:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        return json.loads(match.group()) if match else {}
+    except:
+        return {}
+
+# ── DATA MODEL ────────────────────────────────────
 class MREvent(BaseModel):
     project_id: int
     mr_iid: int
@@ -56,153 +47,128 @@ class MREvent(BaseModel):
     author: str
     title: str
 
-# ── PROMPTS ─────────────────────────────────────────────────────────────────
+# ── PROMPTS ───────────────────────────────────────
 SECURITY_PROMPT = """
-You are a senior application security engineer. Analyze the following code diff for:
-- OWASP Top 10 vulnerabilities
-- Hardcoded secrets
-- SQL injection risks
+Analyze this code for security issues.
 
-Code Diff:
+Code:
 {diff}
 
-Respond ONLY in JSON:
-{
-  "risk_level": "CRITICAL|HIGH|MEDIUM|LOW|NONE",
-  "vulnerabilities": [
-    {"type": "...", "line": "...", "description": "...", "fix": "..."}
-  ],
-  "summary": "..."
-}
+Return JSON:
+{{
+  "risk_level": "LOW",
+  "summary": ""
+}}
 """
 
 CODE_REVIEW_PROMPT = """
-You are a senior software engineer. Review this diff for:
-- Code quality
-- Best practices
-- Performance
+Review this code.
 
-Code Diff:
+Code:
 {diff}
 
-Respond ONLY in JSON:
-{
-  "score": 1,
-  "issues": [],
-  "positives": [],
-  "summary": "..."
-}
+Return JSON:
+{{
+  "score": 5,
+  "summary": ""
+}}
 """
 
-TEST_GENERATION_PROMPT = """
-Generate unit tests for this code diff.
+TEST_PROMPT = """
+Generate tests.
 
-Code Diff:
+Code:
 {diff}
 
-Respond ONLY in JSON:
-{
-  "test_framework": "pytest",
-  "filename": "test_file.py",
-  "test_code": "...",
-  "coverage_estimate": "...",
-  "summary": "..."
-}
+Return JSON:
+{{
+  "test_code": "",
+  "summary": ""
+}}
 """
 
 REPORT_PROMPT = """
-Create a GitLab MR review comment.
+Create a GitLab MR comment.
 
 Security: {security}
 Review: {review}
 Tests: {tests}
-
-Format nicely in markdown with emojis.
 """
 
-# ── CORE FUNCTIONS ──────────────────────────────────────────────────────────
-def run_security_scan(diff: str) -> dict:
-    logger.info("Running security scan...")
-    response = MODEL.generate_content(SECURITY_PROMPT.format(diff=diff))
-    return extract_json(response.text)
+# ── AI FUNCTIONS ─────────────────────────────────
+def ask_ai(prompt):
+    res = client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return res.choices[0].message.content
 
+def run_security_scan(diff):
+    logger.info("Security scan")
+    return extract_json(ask_ai(SECURITY_PROMPT.format(diff=diff)))
 
-def run_code_review(diff: str) -> dict:
-    logger.info("Running code review...")
-    response = MODEL.generate_content(CODE_REVIEW_PROMPT.format(diff=diff))
-    return extract_json(response.text)
+def run_code_review(diff):
+    logger.info("Code review")
+    return extract_json(ask_ai(CODE_REVIEW_PROMPT.format(diff=diff)))
 
+def run_tests(diff):
+    logger.info("Test generation")
+    return extract_json(ask_ai(TEST_PROMPT.format(diff=diff)))
 
-def run_test_generation(diff: str) -> dict:
-    logger.info("Generating tests...")
-    response = MODEL.generate_content(TEST_GENERATION_PROMPT.format(diff=diff))
-    return extract_json(response.text)
-
-
-def compile_report(security: dict, review: dict, tests: dict, title: str, author: str) -> str:
-    logger.info("Compiling report...")
-    response = MODEL.generate_content(
+def compile_report(security, review, tests):
+    return ask_ai(
         REPORT_PROMPT.format(
-            security=json.dumps(security, indent=2),
-            review=json.dumps(review, indent=2),
-            tests=json.dumps(tests, indent=2)
+            security=json.dumps(security),
+            review=json.dumps(review),
+            tests=json.dumps(tests)
         )
     )
-    return response.text
 
-
-# ── GITLAB ACTIONS ──────────────────────────────────────────────────────────
-def post_mr_comment(project_id: int, mr_iid: int, comment: str):
-    project = gl.projects.get(project_id)
-    mr = project.mergerequests.get(mr_iid)
-    mr.notes.create({"body": comment})
-
-
-def add_mr_labels(project_id: int, mr_iid: int, risk_level: str, score: int):
-    project = gl.projects.get(project_id)
-    mr = project.mergerequests.get(mr_iid)
-
-    labels = []
-    if risk_level in ("CRITICAL", "HIGH"):
-        labels.append("security-risk")
-    if score < 6:
-        labels.append("needs-review")
-    if risk_level == "NONE" and score >= 8:
-        labels.append("ai-approved")
-
-    mr.labels = list(set((mr.labels or []) + labels))
-    mr.save()
-
-
-# ── API ─────────────────────────────────────────────────────────────────────
-@app.post("/webhook/mr")
-async def handle_mr_event(request: Request):
+# ── BACKGROUND PROCESS (NEW 🔥) ───────────────────
+def process_ai(event):
     try:
-        payload = await request.json()
+        security = run_security_scan(event.diff)
+        review = run_code_review(event.diff)
+        tests = run_tests(event.diff)
+
+        report = compile_report(security, review, tests)
+
+        post_comment(event.project_id, event.mr_iid, report)
+        logger.info("✅ Comment posted successfully")
+
+    except Exception as e:
+        logger.error(f"❌ Background error: {e}")
+
+# ── GITLAB ───────────────────────────────────────
+def post_comment(project_id, mr_iid, text):
+    project = gl.projects.get(project_id)
+    mr = project.mergerequests.get(mr_iid)
+    mr.notes.create({"body": text})
+
+# ── API ──────────────────────────────────────────
+@app.post("/webhook/mr")
+async def webhook(request: Request):
+    try:
+        data = await request.json()
+
         event = MREvent(
-            project_id=payload["project"]["id"],
-            mr_iid=payload["object_attributes"]["iid"],
-            diff=payload.get("diff", ""),
-            source_branch=payload["object_attributes"]["source_branch"],
-            target_branch=payload["object_attributes"]["target_branch"],
-            author=payload["user"]["name"],
-            title=payload["object_attributes"]["title"]
+            project_id=data["project"]["id"],
+            mr_iid=data["object_attributes"]["iid"],
+            diff=data.get("diff", "No diff"),
+            source_branch=data["object_attributes"]["source_branch"],
+            target_branch=data["object_attributes"]["target_branch"],
+            author=data["user"]["name"],
+            title=data["object_attributes"]["title"]
         )
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    security = run_security_scan(event.diff)
-    review = run_code_review(event.diff)
-    tests = run_test_generation(event.diff)
+    # ✅ RUN IN BACKGROUND (NO TIMEOUT)
+    threading.Thread(target=process_ai, args=(event,)).start()
 
-    report = compile_report(security, review, tests, event.title, event.author)
-
-    post_mr_comment(event.project_id, event.mr_iid, report)
-    add_mr_labels(event.project_id, event.mr_iid, security["risk_level"], review["score"])
-
-    return {"status": "success"}
-
+    return {"status": "processing"}  # ⚡ instant response
 
 @app.get("/health")
 def health():
-    return {"status": "CodeGuard AI is running 🛡️"}
+    return {"status": "running"}
