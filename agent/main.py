@@ -181,48 +181,62 @@ def home():
         <style>
             body {
                 font-family: 'Segoe UI', sans-serif;
-                background: #f8fafc;
+                background: linear-gradient(135deg, #eef2ff, #f8fafc);
                 margin: 0;
                 padding: 40px;
             }
 
             h1 {
                 text-align: center;
-                color: #2563eb;
+                color: #1e3a8a;
                 margin-bottom: 30px;
+                font-size: 32px;
             }
 
             .container {
-                max-width: 900px;
+                max-width: 950px;
                 margin: auto;
             }
 
             textarea {
                 width: 100%;
                 height: 180px;
-                padding: 12px;
-                border-radius: 8px;
-                border: 1px solid #ccc;
+                padding: 15px;
+                border-radius: 10px;
+                border: 1px solid #cbd5f5;
                 font-size: 14px;
+                transition: 0.3s;
+            }
+
+            textarea:focus {
+                outline: none;
+                border-color: #6366f1;
+                box-shadow: 0 0 8px rgba(99,102,241,0.3);
             }
 
             button {
                 margin-top: 15px;
-                padding: 12px 25px;
-                background: #2563eb;
+                padding: 14px 30px;
+                background: linear-gradient(135deg, #4f46e5, #6366f1);
                 color: white;
                 border: none;
-                border-radius: 8px;
+                border-radius: 10px;
                 cursor: pointer;
                 font-size: 16px;
+                transition: 0.3s;
+            }
+
+            button:hover {
+                transform: scale(1.05);
             }
 
             .card {
                 background: white;
                 padding: 20px;
                 margin-top: 20px;
-                border-radius: 12px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+                border-radius: 14px;
+                box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+                animation: fadeIn 0.6s ease;
             }
 
             .title {
@@ -231,15 +245,37 @@ def home():
                 font-size: 18px;
             }
 
-            .risk-low { color: green; }
-            .risk-medium { color: orange; }
-            .risk-high { color: red; }
+            .risk-low { color: green; font-weight:bold; }
+            .risk-medium { color: orange; font-weight:bold; }
+            .risk-high { color: red; font-weight:bold; }
 
             .loading {
                 margin-top: 10px;
-                color: #2563eb;
+                color: #4f46e5;
                 font-weight: bold;
             }
+
+            .loader {
+                width: 40px;
+                height: 40px;
+                border: 5px solid #ddd;
+                border-top: 5px solid #6366f1;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin: 20px auto;
+                display: none;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+
         </style>
     </head>
 
@@ -250,12 +286,13 @@ def home():
 
         <textarea id="code" placeholder="Paste your code here..."></textarea>
 
-        <button onclick="analyze()">Analyze Code</button>
+        <button onclick="analyze()">🚀 Analyze Code</button>
 
+        <div id="loader" class="loader"></div>
         <div id="loading" class="loading"></div>
 
         <div class="card">
-            <div class="title">🔍 Security</div>
+            <div class="title">🔍 Security Analysis</div>
             <div id="security"></div>
         </div>
 
@@ -271,10 +308,20 @@ def home():
     </div>
 
     <script>
+    function formatText(text) {
+        if (!text) return "No data available";
+
+        return text
+            .split(". ")
+            .map(line => "• " + line.trim())
+            .join("<br>");
+    }
+
     async function analyze() {
         const code = document.getElementById("code").value;
 
         document.getElementById("loading").innerText = "Analyzing...";
+        document.getElementById("loader").style.display = "block";
 
         const res = await fetch("/analyze", {
             method: "POST",
@@ -285,23 +332,37 @@ def home():
         const data = await res.json();
 
         document.getElementById("loading").innerText = "";
+        document.getElementById("loader").style.display = "none";
 
-        // Security UI
+        // SECURITY
         const risk = data.security.risk_level || "UNKNOWN";
         let riskClass = "risk-low";
         if (risk === "HIGH") riskClass = "risk-high";
         if (risk === "MEDIUM") riskClass = "risk-medium";
 
         document.getElementById("security").innerHTML =
-            `<b class="${riskClass}">Risk: ${risk}</b><br><br>${data.security.summary || ""}`;
+            `<div class="${riskClass}">Risk Level: ${risk}</div><br>` +
+            formatText(data.security.summary);
 
-        // Review UI
-        document.getElementById("review").innerText =
-            data.review.summary || JSON.stringify(data.review, null, 2);
+        // REVIEW
+        document.getElementById("review").innerHTML =
+            formatText(data.review.summary);
 
-        // Tests UI
-        document.getElementById("tests").innerText =
-            data.tests.summary || JSON.stringify(data.tests, null, 2);
+        // TESTS
+        let testsHTML = "";
+
+        if (data.tests.test_code) {
+            testsHTML += "<b>Test Code:</b><br><br>" +
+                data.tests.test_code.replace(/\\n/g, "<br>");
+        }
+
+        if (data.tests.summary) {
+            testsHTML += "<br><br><b>Explanation:</b><br>" +
+                formatText(data.tests.summary);
+        }
+
+        document.getElementById("tests").innerHTML =
+            testsHTML || "No test suggestions";
     }
     </script>
 
