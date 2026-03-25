@@ -180,92 +180,131 @@ def home():
         <title>CodeGuard AI</title>
         <style>
             body {
-                font-family: Arial, sans-serif;
-                background: #f5f7fb;
-                padding: 30px;
-                color: #333;
+                font-family: 'Segoe UI', sans-serif;
+                background: #f8fafc;
+                margin: 0;
+                padding: 40px;
             }
 
             h1 {
                 text-align: center;
                 color: #2563eb;
+                margin-bottom: 30px;
+            }
+
+            .container {
+                max-width: 900px;
+                margin: auto;
             }
 
             textarea {
                 width: 100%;
-                height: 200px;
-                padding: 10px;
+                height: 180px;
+                padding: 12px;
                 border-radius: 8px;
                 border: 1px solid #ccc;
+                font-size: 14px;
             }
 
             button {
-                margin-top: 10px;
-                padding: 12px 20px;
+                margin-top: 15px;
+                padding: 12px 25px;
                 background: #2563eb;
                 color: white;
                 border: none;
                 border-radius: 8px;
                 cursor: pointer;
+                font-size: 16px;
             }
 
-            .box {
+            .card {
                 background: white;
                 padding: 20px;
                 margin-top: 20px;
-                border-radius: 10px;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             }
 
-            pre {
-                background: #f1f5f9;
-                padding: 10px;
-                border-radius: 6px;
+            .title {
+                font-weight: bold;
+                margin-bottom: 10px;
+                font-size: 18px;
+            }
+
+            .risk-low { color: green; }
+            .risk-medium { color: orange; }
+            .risk-high { color: red; }
+
+            .loading {
+                margin-top: 10px;
+                color: #2563eb;
+                font-weight: bold;
             }
         </style>
     </head>
+
     <body>
-        <h1>🛡️ CodeGuard AI Dashboard</h1>
 
-        <textarea id="code" placeholder="Paste code here..."></textarea><br>
-        <button onclick="analyze()">Analyze</button>
+    <div class="container">
+        <h1>🛡️ CodeGuard AI</h1>
 
-        <div class="box">
-            <h2>🔍 Security</h2>
-            <pre id="security"></pre>
+        <textarea id="code" placeholder="Paste your code here..."></textarea>
+
+        <button onclick="analyze()">Analyze Code</button>
+
+        <div id="loading" class="loading"></div>
+
+        <div class="card">
+            <div class="title">🔍 Security</div>
+            <div id="security"></div>
         </div>
 
-        <div class="box">
-            <h2>🧠 Review</h2>
-            <pre id="review"></pre>
+        <div class="card">
+            <div class="title">🧠 Code Review</div>
+            <div id="review"></div>
         </div>
 
-        <div class="box">
-            <h2>🧪 Tests</h2>
-            <pre id="tests"></pre>
+        <div class="card">
+            <div class="title">🧪 Test Suggestions</div>
+            <div id="tests"></div>
         </div>
+    </div>
 
-        <script>
-        async function analyze() {
-            const code = document.getElementById("code").value;
+    <script>
+    async function analyze() {
+        const code = document.getElementById("code").value;
 
-            const res = await fetch("/analyze", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({ diff: code })
-            });
+        document.getElementById("loading").innerText = "Analyzing...";
 
-            const data = await res.json();
+        const res = await fetch("/analyze", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ diff: code })
+        });
 
-            document.getElementById("security").innerText =
-                JSON.stringify(data.security, null, 2);
+        const data = await res.json();
 
-            document.getElementById("review").innerText =
-                JSON.stringify(data.review, null, 2);
+        document.getElementById("loading").innerText = "";
 
-            document.getElementById("tests").innerText =
-                JSON.stringify(data.tests, null, 2);
-        }
-        </script>
+        // Security UI
+        const risk = data.security.risk_level || "UNKNOWN";
+        let riskClass = "risk-low";
+        if (risk === "HIGH") riskClass = "risk-high";
+        if (risk === "MEDIUM") riskClass = "risk-medium";
+
+        document.getElementById("security").innerHTML =
+            `<b class="${riskClass}">Risk: ${risk}</b><br><br>${data.security.summary || ""}`;
+
+        // Review UI
+        document.getElementById("review").innerText =
+            data.review.summary || JSON.stringify(data.review, null, 2);
+
+        // Tests UI
+        document.getElementById("tests").innerText =
+            data.tests.summary || JSON.stringify(data.tests, null, 2);
+    }
+    </script>
+
     </body>
     </html>
     """
