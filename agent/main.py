@@ -34,9 +34,11 @@ MODEL = "gpt-4o-mini"
 def extract_json(text):
     try:
         match = re.search(r"\{.*\}", text, re.DOTALL)
-        return json.loads(match.group()) if match else {}
+        if match:
+            return json.loads(match.group())
+        return {"raw_output": text}
     except:
-        return {}
+        return {"raw_output": text}
 
 # ── DATA MODEL ────────────────────────────────────
 class MREvent(BaseModel):
